@@ -1,0 +1,255 @@
+---
+layout:  post
+title:   自定义注解实现AOP
+date:   22-09-29 23:03:02 修改
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-Springboot
+-java
+-spring
+-spring boot
+
+---
+
+
+
+AOP是面向切面编程。AOP是OOP的延续，而这里的切面则代表动态的将代码加入到指定的方法或位置上，一句话总结：在不改变原有代码的条件下，对该有功能进行扩展；
+
+
+可以将日志记录、性能统计、安全控制、事务处理、异常处理等代码从业务逻辑代码中分离出来，放到一个非业务逻辑的方法中，进而改变这些行为的同时不影响业务逻辑代码；实现了减少重复代码以及模块间低耦合的目的，以此来达到专心处理业务逻辑代码，不用管日志记录、事务控制及权限控制等。
+
+
+从JDK5开始,Java增加对元数据的支持，也就是注解，注解与注释是有一定区别的，可以把注解理解为代码里的特殊标记，这些标记可以在编译，类加载，运行时被读取，并执行相应的处理。通过注解开发人员可以在不改变原有代码和逻辑的情况下在源代码中嵌入补充信息。
+
+
+自定义注解OptLog，完成日志的记录 自定义注解AccessLimit，完成接口的限流操作 这里只演示日志操作，具体代码查看 [Gitee](https://gitee.com/liushili888/SpringExam.git)仓库
+
+
+## 添加依赖
+
+```java
+<dependency>
+      <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-aop</artifactId>
+     </dependency>
+      <!--浏览器解析工具-->
+     <dependency>
+         <groupId>eu.bitwalker</groupId>
+         <artifactId>UserAgentUtils</artifactId>
+         <version>1.20</version>
+     </dependency>
+     <!--fastJson-->
+     <dependency>
+         <groupId>com.alibaba</groupId>
+         <artifactId>fastjson</artifactId>
+         <version>2.0.7</version>
+     </dependency>
+     <!--Redis-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+```
+
+## 自定义注解
+
+```java
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface OptLog {
+   
+    /**
+     * @return 操作类型
+     */
+    String optType() default "";
+}
+```
+
+## 定义切面
+
+```java
+@Component
+@Aspect
+public class OptLogAspect {
+   
+    /**
+     * 定义切点
+     */
+   @Pointcut("@annotation(com.liu.springexam.annotation.OptLog)")
+    public void optLogPointCut() {
+   }
+
+    /**
+     * 切点后置通知
+     * @param joinPoint 切点
+     * @param result 返回结果
+     */
+    @AfterReturning(value="optLogPointCut()",returning="result")
+    public void saveOptLog(JoinPoint joinPoint,Object result) {
+   
+        // 获取RequestAttributes
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        // 从获取RequestAttributes中获取HttpServletRequest的信息
+        HttpServletRequest request = (HttpServletRequest) Objects.requireNonNull(requestAttributes).resolveReference(RequestAttributes.REFERENCE_REQUEST);
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+
+        Method method = signature.getMethod();
+        //获取自定义注解
+        OptLog optLog = method.getAnnotation(OptLog.class);
+        //获取方法名
+        String methodName = method.getName();
+        // 请求IP
+        String ipAddress = IpUtils.getIpAddress(request);
+        UserAgent userAgent = IpUtils.getUserAgent(request);
+        // 获取操作系统
+        String os = userAgent.getOperatingSystem().getName();
+        // 获取浏览器
+        String browser = userAgent.getBrowser().getName();
+        String ipSource = IpUtils.getIpSource(ipAddress);
+        System.out.println("ipSource = " + ipSource);
+        System.out.println("操作系统："+os);
+        System.out.println("浏览器："+browser);
+        System.out.println("请求IP："+ipAddress);
+        System.out.println("方法名："+methodName);
+        System.out.println("result = " + result);
+    }
+}
+```
+
+IpUtils
+
+```java
+import com.alibaba.fastjson.JSON;
+import eu.bitwalker.useragentutils.UserAgent;
+
+import javax.servlet.http.HttpServletRequest;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.InetAddress;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * ip工具类
+ *
+ */
+@SuppressWarnings("all")
+public class IpUtils {
+   
+
+    /**
+     * 获取用户ip地址
+     *
+     * @param request 请求
+     * @return ip地址
+     */
+    public static String getIpAddress(HttpServletRequest request) {
+   
+        String ipAddress = null;
+        try {
+   
+            ipAddress = request.getHeader("x-forwarded-for");
+            if (ipAddress == null || ipAddress.length() == 0 || "unknown".equalsIgnoreCase(ipAddress)) {
+   
+                ipAddress = request.getHeader("Proxy-Client-IP");
+            }
+            if (ipAddress == null || ipAddress.length() == 0 || "unknown".equalsIgnoreCase(ipAddress)) {
+   
+                ipAddress = request.getHeader("WL-Proxy-Client-IP");
+            }
+            if (ipAddress == null || ipAddress.length() == 0 || "unknown".equalsIgnoreCase(ipAddress)) {
+   
+                ipAddress = request.getRemoteAddr();
+                if ("127.0.0.1".equals(ipAddress)) {
+   
+                    // 根据网卡取本机配置的IP
+                    InetAddress inet = null;
+                    try {
+   
+                        inet = InetAddress.getLocalHost();
+                    } catch (UnknownHostException e) {
+   
+                        e.printStackTrace();
+                    }
+                    ipAddress = inet.getHostAddress();
+                }
+            }
+            // 对于通过多个代理的情况，第一个IP为客户端真实IP,多个IP按照','分割
+            if (ipAddress != null && ipAddress.length() > 15) {
+   
+                // = 15
+                if (ipAddress.indexOf(",") > 0) {
+   
+                    ipAddress = ipAddress.substring(0, ipAddress.indexOf(","));
+                }
+            }
+        } catch (Exception e) {
+   
+            ipAddress = "";
+        }
+        return ipAddress;
+    }
+
+    /**
+     * 解析ip地址
+     *
+     * @param ipAddress ip地址
+     * @return 解析后的ip地址
+     */
+    public static String getIpSource(String ipAddress) {
+   
+        try {
+   
+            URL url = new URL("http://opendata.baidu.com/api.php?query=" + ipAddress + "&co=&resource_id=6006&oe=utf8");
+            BufferedReader reader = new BufferedReader(new InputStreamReader(url.openConnection().getInputStream(), "utf-8"));
+            String line = null;
+            StringBuffer result = new StringBuffer();
+            while ((line = reader.readLine()) != null) {
+   
+                result.append(line);
+            }
+            reader.close();
+            Map map = JSON.parseObject(result.toString(), Map.class);
+            List<Map<String, String>> data = (List) map.get("data");
+            return data.get(0).get("location");
+        } catch (Exception e) {
+   
+            return "";
+        }
+    }
+
+    /**
+     * 获取访问设备
+     *
+     * @param request 请求
+     * @return {@link UserAgent} 访问设备
+     */
+    public static UserAgent getUserAgent(HttpServletRequest request){
+   
+        return UserAgent.parseUserAgentString(request.getHeader("User-Agent"));
+    }
+
+}
+```
+
+## 在Controller层对应的方法上添加注解
+
+```java
+@OptLog(optType = "查询专业")
+    @GetMapping("/list")
+    public RespInfo list() {
+   
+        List<Majors> majorsList = majorsService.findAll();
+        RespInfo result = new RespInfo();
+        result.setCode(200);
+        result.setData(majorsList);
+        result.setMsg("查询成功");
+        return result;
+    }
+```
+

@@ -1,0 +1,178 @@
+---
+layout:  post
+title:   Java生成验证码工具类,并响应给浏览器
+date:   2-04-14 18:40:32 发布
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-工具类
+-java
+
+---
+
+
+## 生成验证码工具类
+
+```java
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.util.Random;
+
+/**
+ * @description: 绘制验证码图片
+ */
+public class CreateVerifiCodeImage {
+   
+
+    private static int WIDTH = 90;
+    private static int HEIGHT = 35;
+    private static int FONT_SIZE = 20; //字符大小
+    private static char[] verifiCode; //验证码
+    private static BufferedImage verifiCodeImage; //验证码图片
+
+    /**
+     * @description: 获取验证码图片
+     * @param: no
+     * @return: java.awt.image.BufferedImage
+     */
+    public static BufferedImage getVerifiCodeImage() {
+   
+        verifiCodeImage = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_BGR);// create a image
+        Graphics graphics = verifiCodeImage.getGraphics();
+
+        verifiCode = generateCheckCode();
+        drawBackground(graphics);
+        drawRands(graphics, verifiCode);
+
+        graphics.dispose();
+
+        return verifiCodeImage;
+    }
+
+    /**
+     * @description: 获取验证码
+     * @param: no
+     * @return: char[]
+     */
+    public static char[] getVerifiCode() {
+   
+        return verifiCode;
+    }
+
+    /**
+     * @description: 随机生成验证码
+     * @param: no
+     * @return: char[]
+     */
+    private static char[] generateCheckCode() {
+   
+        String chars = "0123456789abcdefghijklmnopqrstuvwxyz" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        char[] rands = new char[4];
+        for (int i = 0; i < 4; i++) {
+   
+            int rand = (int) (Math.random() * (10 + 26 * 2));
+            rands[i] = chars.charAt(rand);
+        }
+        return rands;
+    }
+
+    /**
+     * @description: 绘制验证码
+     * @param: g
+     * @param: rands
+     * @return: void
+     */
+    private static void drawRands(Graphics g, char[] rands) {
+   
+        g.setFont(new Font("Console", Font.BOLD, FONT_SIZE));
+
+        for (int i = 0; i < rands.length; i++) {
+   
+
+            g.setColor(getRandomColor());
+            g.drawString("" + rands[i], i * FONT_SIZE + 10, 25);
+        }
+    }
+
+    /**
+     * @description: 绘制验证码图片背景
+     * @param: g
+     * @return: void
+     */
+    private static void drawBackground(Graphics g) {
+   
+
+        g.setColor(Color.white);
+        g.fillRect(0, 0, WIDTH, HEIGHT);
+
+        // 绘制验证码干扰点
+        for (int i = 0; i < 200; i++) {
+   
+            int x = (int) (Math.random() * WIDTH);
+            int y = (int) (Math.random() * HEIGHT);
+            g.setColor(getRandomColor());
+            g.drawOval(x, y, 1, 1);
+
+        }
+    }
+
+    /**
+     * @description: 获取随机颜色
+     * @param: no
+     * @return: java.awt.Color
+     */
+    private static Color getRandomColor() {
+   
+        Random ran = new Random();
+        return new Color(ran.nextInt(220), ran.nextInt(220), ran.nextInt(220));
+    }
+}
+```
+
+### 测试生成验证码
+
+```java
+import com.liu.myzhxy.util.CreateVerifiCodeImage;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.imageio.ImageIO;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+
+@RestController
+@RequestMapping("test")
+public class TestController {
+   
+    @GetMapping("/getVerifiCodeImage")
+    public void getVerifiCodeImage(HttpServletRequest request, HttpServletResponse response){
+   
+        // 获取图片
+        BufferedImage verifiCodeImage = CreateVerifiCodeImage.getVerifiCodeImage();
+        // 获取图片上的验证码
+        String verifiCode =new String( CreateVerifiCodeImage.getVerifiCode());
+        // 将验证码文本放入session域,为下一次验证做准备
+        HttpSession session = request.getSession();
+        session.setAttribute("verifiCode",verifiCode);
+        // 将验证码图片响应给浏览器
+        try {
+   
+            ImageIO.write(verifiCodeImage,"JPEG",response.getOutputStream());
+        } catch (IOException e) {
+   
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+在浏览器输入地址http://localhost:xxx/test/getVerifiCodeImage
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/829b034318d73f758504903f11b2f4d2.png)
+

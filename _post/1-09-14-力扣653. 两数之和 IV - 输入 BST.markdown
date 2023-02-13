@@ -1,0 +1,108 @@
+---
+layout:  post
+title:   力扣653. 两数之和 IV - 输入 BST
+date:   1-09-14 16:01:19 发布
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-leetcode总结
+-java
+-idea
+
+---
+
+
+
+给定一个二叉搜索树 root 和一个目标结果 k，如果 BST 中存在两个元素且它们的和等于给定的目标结果，则返回 true ![img](https://img-blog.csdnimg.cn/d5abe140b48047878611c54ac25170f9.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBA562J5b6F6Iqx5byASQ==,size_18,color_FFFFFF,t_70,g_se,x_16) 前面也碰到了 [两数之和](https://blog.csdn.net/qq_45774645/article/details/110205411)的题目，不过题目给的是数组，而本题目给的是二叉搜索树。虽然数据结构不一样，但是求解的思路还是类似的。
+
+**借用官方的话来说就是：**
+
+>如果存在两个元素之和为<code>k</code>，即 <code>x+y=k</code>，并且已知<code>x</code>是树上一个节点的值，则只需判断树上是否存在一个值为<code>y</code> 的节点，使得<code>y=k−x</code>。基于这种思想，在树的每个节点上遍历它的两棵子树（左子树和右子树），寻找另外一个匹配的数。在遍历过程中，将每个节点的值都放到一个 <code>set</code> 中。<br> 对于每个值为 <code>p</code>的节点，在 set 中检查是否存在<code>k−p</code>。如果存在，那么可以在该树上找到两个节点的和为 <code>k</code>；否则，将 <code>p</code> 放入到<code>set</code>中。
+
+```java
+基于这个思想，可以又很多种做法。
+```
+
+## 递归
+
+使用递归最简洁，在递归过程中存储值放到set集合，并进行判断
+
+```java
+public class Solution {
+   
+    public boolean findTarget(TreeNode root, int k) {
+   
+        Set <Integer> set = new HashSet();
+        return find(root, k, set);
+    }
+    public boolean find(TreeNode root, int k, Set < Integer > set) {
+   
+        if (root == null)
+            return false;
+        if (set.contains(k - root.val))
+            return true;
+        set.add(root.val);
+        return find(root.left, k, set) || find(root.right, k, set);
+    }
+}
+```
+
+## BFS+HashSet
+
+```java
+public boolean findTarget(TreeNode root, int k) {
+   
+        Set <Integer> set = new HashSet();
+        Queue <TreeNode> queue = new LinkedList();
+        queue.add(root);
+        while (!queue.isEmpty()) {
+   
+            TreeNode node = queue.poll();
+            if (set.contains(k-node.val))
+                return true;
+            set.add(node.val);
+            if (node.left!=null)
+                queue.add(node.left);
+            if (node.right!=null)
+                queue.add(node.right);
+        }
+        return false;
+    }
+```
+
+## 双指针
+
+由于给的是二叉搜索树，所以中序遍历的结果是升序排列的，我们可以把结果存储起来，使用使用双指针的思路，来寻找是否存在这两个值。
+
+```java
+public class Solution {
+   
+    public boolean findTarget(TreeNode root, int k) {
+   
+        List <Integer> list = new ArrayList();
+        inorder(root, list);
+        int l = 0, r = list.size() - 1;
+        while (l < r) {
+   
+            int sum = list.get(l) + list.get(r);
+            if (sum == k)
+                return true;
+            if (sum < k)
+                l++;
+            else
+                r--;
+        }
+        return false;
+    }
+    public void inorder(TreeNode root, List < Integer > list) {
+   
+        if (root == null)
+            return;
+        inorder(root.left, list);
+        list.add(root.val);
+        inorder(root.right, list);
+    }
+}
+```
+

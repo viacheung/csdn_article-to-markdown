@@ -1,0 +1,154 @@
+---
+layout:  post
+title:   JDBC连接数据库模板
+date:   1-05-27 15:45:39 发布
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-数据库
+-数据库
+-mysql
+-jdbc
+-java
+
+---
+
+
+
+>java语言连接数据库使用一套接口，这个接口叫做Java Database Connectivity，简称JDBC。我们程序员只要面对接口编程就可以了，调用接口中的方法，具体的实现类，由各大数据库厂商去实现，从而减轻程序员的负担。
+
+
+这套接口可以在java.sql包下找到 ![img](https://img-blog.csdnimg.cn/20210527114938991.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQ1Nzc0NjQ1,size_16,color_FFFFFF,t_70) 所以在使用jbdc编程之前需要将要使用数据库的实现类jar包(驱动)导入进来。
+
+jdbc编程一般包括六个步骤以mysql为例:
+
+- 注册驱动（要连接哪一个数据库）
+
+```java
+Class.forName("com.mysql.jdbc.Driver");
+```
+
+- 获取连接(JVM进程和数据库之间的进程打开，进程之间的通信是重量级的)
+
+```java
+conn=DriverManger.getConnection("jdbc:mysql://localhost:3306/数据库名","数据库账号","密码");
+```
+
+- 获取数据库操作对象（执行sql语句的对象）
+
+```java
+ps=conn.prepareStatement(sql);
+//使用的Statement的子类PreparedStatement防止sql注入，详细了解请搜索相关文档
+```
+
+- 执行sql
+
+```java
+//执行sql有两种，一种是查询select语句，会得到查询结果集
+re=ps.executeQuery();
+//一种是增删改，得到的是int类型数据，表示影响到的数据条数
+int cont=ps.executeUpdate();
+```
+
+- 处理查询结果集
+
+```java
+//如果是select语句的话，就需要处理查询结果集，否则就没有这一步
+while(re.next){
+   
+}
+```
+
+- 释放资源
+
+```java
+//由于进程之间的通信是重量级的，所以使用结束之后要记得释放资源。
+```
+
+```java
+public class jdbc08 {
+   
+    public static void main(String[] args) {
+   
+        Connection conn=null;
+        PreparedStatement ps=null;
+        ResultSet re=null;
+        try {
+   //注册驱动
+            Class.forName("com.mysql.jdbc.Driver");
+            //获取连接
+            conn=DriverManager.getConnection("jdbc:mysql://localhost:3306/text","root","...");
+            //取消事务自动提交
+            conn.setAutoCommit(false);
+            String sql="insert into 表名 values(?,?,?)";
+            //获取数据库操作对象
+            ps=conn.prepareStatement(sql);
+            ps.setString(1,"");
+            ps.setString(2,"");
+            ps.setString(3,"");
+            //执行sql语句
+            re=ps.executeQuery();
+            //处理查询结果集
+            while (re.next()) {
+   
+                re.getString("列名");
+            }
+            //当前面没有异常发生时，会执行到这里
+            //没有发生异常才可以提交
+            //要么同时成功，要么同时失败
+            conn.commit();
+        } catch (ClassNotFoundException e) {
+   
+            if (conn!=null){
+   
+                try {
+   //发生异常时候，回滚事务
+                    conn.rollback();
+                } catch (SQLException throwables) {
+   
+                    throwables.printStackTrace();
+                }
+            }
+            e.printStackTrace();
+        } catch (SQLException throwables) {
+   
+            throwables.printStackTrace();
+        }finally {
+   
+            //释放资源
+            if (re!=null){
+   
+                try {
+   
+                    re.close();
+                } catch (SQLException throwables) {
+   
+                    throwables.printStackTrace();
+                }
+            }
+            if (ps!=null){
+   
+                try {
+   
+                    ps.close();
+                } catch (SQLException throwables) {
+   
+                    throwables.printStackTrace();
+                }
+            }
+            if (conn!=null){
+   
+                try {
+   
+                    conn.close();
+                } catch (SQLException throwables) {
+   
+                    throwables.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+

@@ -1,0 +1,307 @@
+---
+layout:  post
+title:   vuex使用教程--入门篇
+date:   2-06-10 17:32:16 发布
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-前端
+
+---
+
+
+
+
+按照官网的说法，Vuex 是一个专为 Vue.js 应用程序开发的状态管理模式。它采用集中式存储管理应用的所有组件的状态，并以相应的规则保证状态以一种可预测的方式发生变化。
+
+## vuex的组成
+
+vuex由五个部分组成，分别是State，Mutation，Action，Module，Getter。
+
+
+## 为什么使用vuex？
+
+-  多个视图依赖于同一状态  
+-  来自不同视图的行为需要变更同一状态 
+
+对于问题一，传参的方法对于多层嵌套的组件将会非常繁琐，并且对于兄弟组件间的状态传递无能为力。
+
+对于问题二，我们经常会采用父子组件直接引用或者通过事件来变更和同步状态的多份拷贝。以上的这些模式非常脆弱，通常会导致无法维护的代码。
+
+其实vuex通俗点可以理解为**响应式的全局变量**，作用也与我们在C语言，C++，Java中的全局变量（静态变量）有类似之处。
+
+## 什么情况下使用 vuex？
+
+Vuex 可以帮助我们管理共享状态，并附带了更多的概念和框架。这需要对短期和长期效益进行权衡。如果您不打算开发大型单页应用，使用 Vuex 可能是繁琐冗余的。但是，如果您需要构建一个中大型单页应用，您很可能会考虑如何更好地在组件外部管理状态，Vuex 将会成为自然而然的选择。
+
+## vuex安装（需先安装vue-cli）
+
+1.cd到自己的项目目录下
+
+2.输入命令：**npm install vuex --save**
+
+如果出现以下提示，则说明安装成功
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/c498bd43c39e90f5a85e7c1943e8df45.png)
+
+如果出现以下提示，则需切换到管**理员模式下的命令行**，再执行cd和安装操作
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/14c0b236dfcb1a0c5f281c8b68dac91b.png)
+
+## vue的使用
+
+可能说到这里还有很多人还是不太理解为什么要使用vuex，虽然刚刚已经解释过了。
+
+举个例子：假设要统计两个页面的所有按钮点击总次数。我们设置一个count来代表它。当用户从page1跳转到page2的时候，如何知道用户在page1中点击了多少下呢？在没有使用vuex的时候我们通常是使用组件或路由传参来传递count以达到统计的目的。当page1跳转到page2时，传递count到page2，反之亦然。当只有两个界面的时候，这种做法完全没有问题。如果有要统计十个界面的所有按钮点击总次数呢？这将是一个巨大的麻烦。所以下面也以这个例子来学习一下vuex。
+
+### 1.首先，新建好所需文件夹和文件，以供等下的学习使用。
+
+在src目录下新建store和pages文件夹，store文件夹里面新建五个文件，分别是store.js，state.js，actions.js，mutations.js，getters.js。pages文件夹里面新建两个文件，分别是page1.vue，page2.vue。
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/9c4262c2325297612592b16d1a6293f6.png)
+
+### 2.然后进行配置
+
+#### （1）在main.js引入、注册store
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/55522d936c4343f5672c3cfba5167e6c.png)
+
+#### （2）在index.js中添加路由
+
+```java
+import Vue from 'vue'
+import Router from 'vue-router'
+import page1 from '../pages/page1'
+import page2 from '../pages/page2'
+
+Vue.use(Router)
+
+export default new Router({
+  routes: [
+    {
+      path: '/',
+      name: 'page1',
+      component: page1
+    },
+    {
+      path: '/page1',
+      name: 'page1',
+      component: page1
+    },
+    {
+      path: '/page2',
+      name: 'page2',
+      component: page2
+    }
+  ]
+})
+```
+
+#### （3）在store.js中添加
+
+```java
+import Vue from 'vue'
+import Vuex from 'vuex'
+import state from './state'
+import mutations from './mutations'
+import actions from './actions'
+import getters from './getters'
+
+Vue.use(Vuex)
+
+export default new Vuex.Store({
+    state,
+    mutations,
+    actions,
+    getters,
+})
+```
+
+
+[![img](https://img-blog.csdnimg.cn/img_convert/7dd9ccd4e6f7fd911eb1ffa20eeea640.gif)](javascript:void(0)😉
+
+### 3.完成以上步骤就可以初步使用vuex了
+
+#### （1）state
+
+在state.js添加状态变量count，并设置初值为0
+
+```java
+export default {
+    count:'0'
+}
+```
+
+通过"this.$store.state.变量名"可以访问访问状态变量。在page1中添加以下代码，就可以显示为count赋的初值
+
+```java
+<template>
+    <div>总数是：{
+  {this.$store.state.count}}</div>
+</template>
+
+<script>
+export default {
+
+}
+</script>
+```
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/867edc94bd43edb7a59b4e595b541b69.png)
+
+当然，如果这个变量在这个页面只出现一次你可以这么写，但是如果经常出现你每次都使用"this.$store.state.变量名"将是一件麻烦的事情。
+
+一种更简便的方法是使用计算属性返回count的值
+
+```java
+<template>
+   总数是：{
+  {getCount}}
+  </div>
+</template>
+<script>
+export default {
+
+  computed: {
+​    getCount:function() {
+​      return this.$store.state.count
+​    }
+  }
+}
+
+</script>
+```
+
+此外，还可以使用mapState来映射state中的状态变量，这样就可以直接使用count
+
+```java
+<template>
+    <div>
+        总数是：{
+  {count}}
+    </div>
+</template>
+
+<script>
+```
+
+import {mapState,mapMutations,mapActions,mapGetters} from ‘vuex’; //导入mapState方法，同时导入其他方法的，方便等下使用
+
+```java
+export default {
+    //映射count,this.count就是this.$store.state.count,相当于把state中的count变为组件的变量
+    computed: mapState(["count"]) 
+}
+</script>
+```
+
+#### （2）mutation
+
+之前说过，只有通过mutation才能更改state中变量的值。因此，可以在mutations.js中添加修改state中count的方法用于实现点击次数统计，如下
+
+```java
+export default {
+     addCount(state) {  //传入state对象
+　　　state.count++ 
+    }
+}
+```
+
+如果要实现统计点击次数，就是当每次点击的时候调用mutation中的addCount方法。通过"this.$store.commit(“addCount”)"可以调用addCount方法实现count的增加，如下
+
+```java
+<template>
+    <div>
+        <button @click="addCount()">点击总数是：{
+  {count}}</button>
+    </div>
+</template>
+
+<script>
+import {mapState} from 'vuex';
+export default {
+    //映射count,this.count就是this.$store.state.count,相当于把state中的count变为组件的变量
+    computed: mapState(["count"]),
+    methods: {
+        addCount() { 
+            this.$store.commit("addCount")
+        }
+    }
+}
+</script>
+```
+
+同样的，通过mapMutation来映射也可以使用addCount方法
+
+```java
+methods: {
+        ...mapMutations(["addCount"])  //映射addCount方法,this.addCount就等于this.$store.commit("addCount")
+    }
+```
+
+#### （3）getters
+
+getters可以理解为store中的计算属性，对state中的变量在输出前进行处理。例如：需要实现再点击三下按钮之后一共点击了多少下次数显示的功能，就可以在getters,js添加以下代码
+
+```java
+export default {
+    getCountAfter3(state) {  //传入state对象
+        let result = state.count+3
+        return result
+    }
+}
+```
+
+然后在page1中，通过"this.$store.getters.getCountAfter3"调用getCountAfter3方法显示，可以实现上述效果
+
+```java
+<button>继续点击三次后次数将会变为{
+  {getCountAfter3}}</button>
+```
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/1b4367bbf72b8e49893dedc2e6b1c7e4.png)
+
+同样的，通过映射也可以使用getters中的方法
+
+```java
+computed: {
+        ...mapState(["count"]),  //映射count,this.count就是this.$store.state.count,相当于把state中的count变为组件的变量
+        ...mapGetters(["getCountAfter3"]),  //映射getCountAfter3
+    },
+```
+
+#### （4）actions
+
+通过action也可以实现count的增加。当然，action也是通过调用mutation来实现count增加的。两者的主要区别是actions可以实现异步操作。在actions.js添加
+
+```java
+export default {
+    addCountAction({commit}) {
+        commit('addCount')
+    }
+}
+```
+
+然后在page1中可以通过"this.$store.dispatch(‘addCountAction’)"来调用addCountAction方法实现count++（与Mutations类似）
+
+同样的，也可以通过映射来使用addCountAction方法
+
+```java
+methods: {
+        ...mapMutations(["addCount"]),  //映射addCount方法,this.addCount就等于this.$store.commit("addCount")
+        ...mapActions(["addCountAction"])  //映射addCountAction方法
+    }
+```
+
+因为篇幅限制，page2就不再详细讲述，page2页面其实可以直接复制page1，再在两个界面添加跳转按钮即可，实现效果如下：
+
+
+![img](https://img-blog.csdnimg.cn/img_convert/4cffb7350069cfe17f59d77fd8d06947.gif)
+

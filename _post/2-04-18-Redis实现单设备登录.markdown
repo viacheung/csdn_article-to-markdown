@@ -1,0 +1,116 @@
+---
+layout:  post
+title:   Redis实现单设备登录
+date:   2-04-18 18:36:10 发布
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-Redis
+-Springboot
+-redis
+-spring boot
+
+---
+
+
+在有些场景下，我们希望用户一个账号只能登录一个设备。
+
+这个时候我们可以用Redis来实现。
+
+>原理： 用户首次登录时，将用户信息存入Redis，key是用户id，value是token。当用户在其他设备登录时，会重新生成token，这个时候原先的token已经被覆盖了。所以用户在访问需要登录账号的操作时，系统会拦截请求判断token是否存在。当然是不存在的，所以我们就实现了单个设备登录的需求。
+
+这里只提供大概的样例。
+
+## 用户登录
+
+```java
+@PostMapping("login")
+@ApiOperation(value = "用户登录",notes = "用户登录")
+public GraceJSONResult login(@RequestParam String userId,HttpServletRequest request) throws Exception {
+   
+    String uToken = UUID.randomUUID().toString();
+    //把token存入redis
+    redis.set("redis_user_token"+":"+userId,uToken);
+    //返回用户信息，包含token
+    return GraceJSONResult.ok(usersVO);
+}
+```
+
+## 拦截器
+
+拦截哪些操作需要用户登录，在拦截器中实现单设备登录。
+
+>说明：BaseInfoProperties是共有的代码，集成这个类就可以直接使用reidis。
+
+```java
+public class BaseInfoProperties {
+   
+    @Autowired
+    public RedisOperator redis;
+}
+```
+
+>说明：GraceException是自定义的抛出异常的类，这里不做展示。
+
+```java
+public class UserTokenInterceptor extends BaseInfoProperties implements HandlerInterceptor {
+   
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+   
+        String userId = request.getHeader("headerUserId");
+        String userToken = request.getHeader("headerUserToken");
+        // 判断用户id和token是否为空
+        if(StringUtils.isNotBlank(userId) && StringUtils.isNotBlank(userToken)){
+   
+            String redisToken=redis.get(REDIS_USER_TOKEN+":"+userId);
+            //判断token是否失效
+            if(StringUtils.isBlank(redisToken)){
+   
+                GraceException.display(ResponseStatusEnum.UN_LOGIN);
+                return false;
+            }else {
+   
+                //判断token是否一致,如果不一致，表示用户在别的手机端登录，token被覆盖了
+                if(!redisToken.equalsIgnoreCase(redisToken)){
+   
+                    GraceException.display(ResponseStatusEnum.TICKET_INVALID);
+                    return false;
+                }
+            }
+        }else {
+   
+            // 用户id和token为空
+            GraceException.display(ResponseStatusEnum.UN_LOGIN);
+            return false;
+        }
+
+        return true;
+    }
+}
+```
+
+## 注册拦截器
+
+```java
+@Configuration
+public class InterceptorConfig implements WebMvcConfigurer{
+   
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+   
+        //要拦截的请求，哪些需要登录
+        registry.addInterceptor(userTokenInterceptor())
+                .addPathPatterns("/userInfo/modifyUserInfo")
+                .addPathPatterns("/userInfo/modifyImage");
+    }
+    //用户未登录拦截器
+    @Bean
+    public UserTokenInterceptor userTokenInterceptor() {
+   
+       return  new UserTokenInterceptor();
+    }
+}
+```
+

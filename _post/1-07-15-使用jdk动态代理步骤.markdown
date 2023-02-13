@@ -1,0 +1,99 @@
+---
+layout:  post
+title:   使用jdk动态代理步骤
+date:   1-07-15 10:08:02 发布
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-Java
+-设计模式
+-proxy
+-aop
+-spring
+-java
+
+---
+
+
+
+>SomeService是一个接口，有两个方法
+
+```java
+public interface SomeService {
+   
+    void doSome();
+    void doOther();
+}
+```
+
+>创建SomeService接口的实现类
+
+```java
+public class SomeServiceImpl implements SomeService {
+   
+    @Override
+    public void doSome() {
+   
+        System.out.println("执行业务方法doSome");
+    }
+
+    @Override
+    public void doOther() {
+   
+        System.out.println("执行业务方法doOther");
+    }
+}
+```
+
+
+```java
+public class MyIncationHandler implements InvocationHandler {
+   
+    //目标对象
+    private Object target; //SomeServiceImpl类
+
+    public MyIncationHandler(Object target) {
+   
+        this.target = target;
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+   
+        //通过代理对象执行方法时，会调用执行这个invoke（）
+        Object res = null;
+        System.out.println(new Date());; //在目标方法之前，输出时间
+        //执行目标类的方法，通过Method类实现
+        res  = method.invoke(target,args); //SomeServiceImpl.doSome()
+        //目标方法的执行结果
+        return res;
+    }
+}
+```
+
+
+>在主程序中调用如下
+
+```java
+public class MyApp {
+   
+    public static void main(String[] args) {
+   
+        SomeService target = new SomeServiceImpl();
+
+        //创建InvocationHandler对象
+        InvocationHandler handler = new MyIncationHandler(target);
+
+        //使用Proxy创建代理
+        SomeService proxy = (SomeService) Proxy.newProxyInstance(
+                target.getClass().getClassLoader(),
+                target.getClass().getInterfaces(),handler);
+        //com.sun.proxy.$Proxy0
+        System.out.println("proxy======"+proxy.getClass().getName());
+        //通过代理执行方法，会调用handler中的invoke（）
+        proxy.doSome();
+    }
+}
+```
+

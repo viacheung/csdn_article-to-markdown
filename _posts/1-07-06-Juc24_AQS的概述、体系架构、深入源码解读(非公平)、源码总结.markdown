@@ -1,0 +1,159 @@
+---
+layout:  post
+title:   Juc24_AQS的概述、体系架构、深入源码解读(非公平)、源码总结
+date:   1-07-06 12:30:41 发布
+author:  'zhangtao'
+header-img: 'img/post-bg-2015.jpg'
+catalog:   false
+tags:
+-JUC并发编程
+
+---
+
+
+
+
+
+
+
+
+- ①. 是用来构建锁或者其它同步器组件的重量级基础框架及整个JUC体系的基石,通过内置的CLH(FIFO)队列的变种来完成资源获取线程的排队工作,将每条将要去抢占资源的线程封装成一个Node节点来实现锁的分配,有一个int类变量表示持有锁的状态(private volatile int state),通过CAS完成对status值的修改(0表示没有,1表示阻塞) CLH:Craig、Landin and Hagersten 队列,是一个单向链表,AQS中的队列是CLH变体的虚拟双向队列FIFO 
+- ②. AQS为什么是JUC内容中最重要的基石 (ReentrantLock | CountDownLatch | ReentrantReadWriteLock | Semaphore)
+
+>通过代码解释为什么JUC是最重要的基石<br> (1). 和AQS有关的<br> <img src="https://img-blog.csdnimg.cn/20210702093110465.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述">(2).ReentrantLock<br> <img src="https://img-blog.csdnimg.cn/20210702093211809.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br> (3).CountDownLatch<br> <img src="https://img-blog.csdnimg.cn/20210702093225768.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br> (4).ReentrantReadWriteLock<br> <img src="https://img-blog.csdnimg.cn/20210702093238641.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述">(5). Semaphore<br> <img src="https://img-blog.csdnimg.cn/20210702093256709.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述">
+
+-  ③. 锁,面向锁的使用者(定义了程序员和锁交互的使用层API,隐藏了实现细节,你调用即可) 同步器,面向锁的实现者(比如Java并发大神Douglee,提出统一规范并简化了锁的实现,屏蔽了同步状态管理、阻塞线程排队和通知、唤醒机制等。)  
+-  ④. 加锁会导致阻塞、有阻塞就需要排队,实现排队必然需要队列  
+-  ⑤. 如果共享资源被占用,就需要一定的阻塞等待唤醒机制来保证锁分配。这个机制主要用的是CLH队列的变体实现的,将暂时获取不到锁的线程加入到队列中,这个队列就是AQS的抽象表现。它将请求共享资源的线程封装成队列的结点(Node) ,通过CAS、自旋以及LockSuport.park()的方式,维护state变量的状态,使并发达到同步的效果 
+
+
+
+
+
+
+
+
+- ①. AQS内部架构图: ![img](https://img-blog.csdnimg.cn/20210702093633674.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70) ![img](https://img-blog.csdnimg.cn/20210702093746755.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70) 
+- <font color="red">②. 详解AQS内部代码有什么？ <img src="https://img-blog.csdnimg.cn/20201024104940778.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center" alt="在这里插入图片描述"></font> 
+- ③. CLH队列(三个大牛的名字组成),为一个双向队列 ![img](https://img-blog.csdnimg.cn/20201024105009266.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center) 
+- ④. 内部结构(Node此类的讲解) ![img](https://img-blog.csdnimg.cn/20201025200211969.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center) ![img](https://img-blog.csdnimg.cn/20210702094553986.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70) 
+- ⑤. AQS同步队列的基本结构 ![img](https://img-blog.csdnimg.cn/20201024105320135.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center)
+
+
+>写在最前面:<br> (1). 本次讲解我们走最常用的,lock/unlock作为案例突破口<br> (2). 我相信你应该看过源码了,那么AQS里面有个变量叫State,它的值有几种？3个状态:没占用是0,占用了是1,大于1是可重入锁<br> (3). 如果AB两个线程进来了以后,请问这个总共有多少个Node节点？答案是3个,其中队列的第一个是傀儡节点(哨兵节点)<br> 业务图:<br> <img src="https://img-blog.csdnimg.cn/20201025210257600.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center" alt="在这里插入图片描述">
+
+## ①. 代码展示
+
+```java
+public class AQSDemo {
+   
+    public static void main(String[] args) {
+   
+        ReentrantLock lock = new ReentrantLock();
+        //带入一个银行办理业务的案例来模拟我们的AQS如何进行线程的管理和通知唤醒机制
+        //3个线程模拟3个来银行网点,受理窗口办理业务的顾客
+        //A顾客就是第一个顾客,此时受理窗口没有任何人,A可以直接去办理
+        new Thread(() -> {
+   
+                lock.lock();
+                try{
+   
+                    System.out.println("-----A thread come in");
+
+                    try {
+    TimeUnit.MINUTES.sleep(20); }catch (Exception e) {
+   e.printStackTrace();}
+                }finally {
+   
+                    lock.unlock();
+                }
+        },"A").start();
+
+        //第二个顾客,第二个线程---》由于受理业务的窗口只有一个(只能一个线程持有锁),此时B只能等待,
+        //进入候客区
+        new Thread(() -> {
+   
+            lock.lock();
+            try{
+   
+                System.out.println("-----B thread come in");
+            }finally {
+   
+                lock.unlock();
+            }
+        },"B").start();
+
+        //第三个顾客,第三个线程---》由于受理业务的窗口只有一个(只能一个线程持有锁),此时C只能等待,
+        //进入候客区
+        new Thread(() -> {
+   
+            lock.lock();
+            try{
+   
+                System.out.println("-----C thread come in");
+            }finally {
+   
+                lock.unlock();
+            }
+        },"C").start();
+    }
+}
+```
+
+## ②. 从最简单的lock方法开始看看公平和非公平
+
+
+
+
+- ①. 通过ReentrantLock的源码来讲解公平锁和非公平锁 ![img](https://img-blog.csdnimg.cn/20201025200743744.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center) ![img](https://img-blog.csdnimg.cn/20201025200752772.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center)![img](https://img-blog.csdnimg.cn/20210705205335214.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70) 
+- <font color="red">②. 可以明显看出公平锁与非公平锁的lock()方法唯一的区别就在于公平锁在获取同步状态时多了一个限制条件:hasQueuedPredecessors() <font color="blue">hasQueuedPredecessors是公平锁加锁时判断等待队列中是否存在有效节点的方法 <img src="https://img-blog.csdnimg.cn/20210705205325206.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></font></font>
+
+## ③. lock()
+
+
+
+- ①. lock.lock( ) 源码 ![img](https://img-blog.csdnimg.cn/20210705205642730.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70) 
+- ②. acquire( ):源码和3大流程走向 ![img](https://img-blog.csdnimg.cn/20201025201418303.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center)
+
+## ④. tryAcquire(arg)
+
+
+- ①.本次走非公平锁方向 ![img](https://img-blog.csdnimg.cn/20201025201516239.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center) 
+- <font color="red">②. nonfairTryAcquire(acquires) return false(继续推进条件,走下一步方法addWaiter) return true(结束) <img src="https://img-blog.csdnimg.cn/20201025202052403.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center" alt="在这里插入图片描述"></font>
+
+## ⑤. addWaiter(Node.EXCLUSIVE)
+
+>假如3号ThreadC线程进来<br> (1). prev<br> (2). compareAndSetTail<br> (3). next
+
+
+
+- ①. addWaiter(Node mode ) <font color="red">双向链表中,第一个节点为虚节点(也叫哨兵节点),其实并不存储任何信息,只是占位。 真正的第一个有数据的节点,是从第二个节点开始的 <img src="https://img-blog.csdnimg.cn/20201025202813662.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center" alt="在这里插入图片描述"></font> 
+- ②. enq(node); ![img](https://img-blog.csdnimg.cn/20201025203416851.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center) 
+- ③. B、C线程都排好队了效果图如下: ![img](https://img-blog.csdnimg.cn/2020102820491762.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center)
+
+## ⑥. acquireQueued(addWaiter(Node.EXCLUSIVE), arg)
+
+-  ①. acquireQueued (会调用如下方法:shouldParkAterFailedAcquire和parkAndCheckInterrupt | setHead(node) )  
+-  ②. shouldParkAfterFailedAcquire  
+-  ③. parkAndCheckInterrupt  
+-  ④. 当我们执行下图中的③表示线程B或者C已经获取了permit了  
+-  ⑤. setHead( )方法 代码执行完毕后,会出现如下图所示 
+
+
+![img](https://img-blog.csdnimg.cn/20201028215031963.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center)
+
+## ⑦. unlock( )获取permit
+
+
+
+
+- ①. release | tryRelease | unparkSuccessor(h); ![img](https://img-blog.csdnimg.cn/20201028214828280.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center) 
+- ②. tryRelease() ![img](https://img-blog.csdnimg.cn/20201028213848283.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center) 
+- ③. unparkSuccessor( ) ![img](https://img-blog.csdnimg.cn/20201028214637248.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RaODQ1MTk1NDg1,size_16,color_FFFFFF,t_70#pic_center)
+
+## ⑧. AQS源码总结
+
+-  ①. 业务场景,比如说我们有三个线程A、B、C去银行办理业务了,A线程最先抢到执行权开始办理业务,那么B、C两个线程就在CLH队列里面排队如图所示,注意傀儡结点和B结点的状态都会改为-1  
+-  ②. 当A线程办理好业务,离开的时候,会把傀儡结点的waitStatus从-1改为0 | 将status从1改为0,将当前线程置为null  
+-  ③. 这个时候如果B上位,首先将status从0改为1(表示占用),把thread置为线程B | 会执行如下图的①②③④,会触发GC,然后就把第一个灰色的傀儡结点给清除掉了,这个时候原来的B结点重新成为傀儡结点 
+
